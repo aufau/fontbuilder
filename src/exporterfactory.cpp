@@ -33,6 +33,7 @@
 
 extern AbstractExporter* GHLExporterFactoryFunc (QObject*);
 extern AbstractExporter* ZFIExporterFactoryFunc (QObject* parent);
+extern AbstractExporter* JediExporterFactoryFunc (QObject* parent);
 extern AbstractExporter* DivoExporterFactoryFunc (QObject*);
 extern AbstractExporter* NGLExporterFactoryFunc (QObject*);
 extern AbstractExporter* LuaTableExporterFactoryFunc (QObject*);
@@ -55,6 +56,7 @@ ExporterFactory::ExporterFactory(QObject *parent) :
     m_factorys["Simple"] = &SimpleExporterFactoryFunc;
     m_factorys["MyGUI"] = &MyGUIExporterFactoryFunc;
     m_factorys["BMFont"] = &BMFontExporterFactoryFunc;
+    m_factorys["Jedi Knight - fontdat"] = &JediExporterFactoryFunc;
 }
 
 
