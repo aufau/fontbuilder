@@ -37,16 +37,8 @@ GridLayouter::GridLayouter(QObject *parent) :
 {
 }
 
-static unsigned int nextpot(unsigned int val) {
-    val--;
-    val = (val >> 1) | val;
-    val = (val >> 2) | val;
-    val = (val >> 4) | val;
-    val = (val >> 8) | val;
-    val = (val >> 16) | val;
-    val++;
-    return val;
-}
+#define GRID_ROWS 16
+#define GRID_COLS 16
 
 void GridLayouter::PlaceImages(const QVector<LayoutChar>& chars) {
     if (chars.isEmpty()) return;
@@ -55,9 +47,7 @@ void GridLayouter::PlaceImages(const QVector<LayoutChar>& chars) {
     int min_x = chars.front().x;
     int max_y = chars.front().y;
     int max_x = chars.front().x;
-    int max_w = 0;
-    int grid_h, grid_w;
-
+    int max_w, max_h;
 
     foreach (const LayoutChar& c, chars) {
         if (c.x < min_x)
@@ -68,24 +58,20 @@ void GridLayouter::PlaceImages(const QVector<LayoutChar>& chars) {
             min_y = c.y;
         if (c.y + c.h > max_y)
             max_y = c.y + c.h;
-        if (c.w > max_w)
-            max_w = c.w;
     }
-    grid_h = max_y - min_y;
-    //grid_h = grid_h * 16 / 14;
-    grid_h += 2;
-    grid_h = nextpot(grid_h);
 
-    grid_w = max_x - min_x;
-    grid_w *= 2;
-    grid_w = nextpot(grid_w);
+    max_w = max_x - min_x;
+    max_h = max_y - min_y;
 
-    resize(grid_w * 16, grid_h * 16);
+    resize(max_w * GRID_COLS, max_h * GRID_ROWS);
 
     foreach (const LayoutChar& c, chars) {
         LayoutChar l = c;
-        l.x = (c.symbol & 0x0f) * grid_w + l.x - min_x;
-        l.y = ((c.symbol & 0xf0) >> 4) * grid_h + l.y - min_y;
+        int column = c.symbol % GRID_COLS;
+        int row = c.symbol / GRID_COLS ;
+
+        l.x = column * width() / GRID_COLS + l.x - min_x;
+        l.y = row * height() / GRID_ROWS + l.y - min_y;
         place(l);
     }
 }

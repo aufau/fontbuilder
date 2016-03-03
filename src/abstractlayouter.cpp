@@ -54,7 +54,7 @@ void AbstractLayouter::DoPlace(const QVector<LayoutChar>& chars) {
     m_compact_w = 0;
     m_compact_h = 0;
     PlaceImages(chars);
-    //resize(m_compact_w,m_compact_h);
+    resize(m_compact_w,m_compact_h);
     m_data->endPlacing();
 }
 
