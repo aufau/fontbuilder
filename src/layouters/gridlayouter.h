@@ -28,31 +28,24 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "layouterfactory.h"
+#ifndef GRIDLAYOUTER_H
+#define GRIDLAYOUTER_H
 
+#include "../abstractlayouter.h"
 
-extern AbstractLayouter* LineLayouterFactoryFunc (QObject*);
-extern AbstractLayouter* GridLayouterFactoryFunc (QObject*);
-extern AbstractLayouter* BoxLayouterFactoryFunc (QObject*);
-extern AbstractLayouter* BoxLayouterOptimizedFactoryFunc (QObject*);
-
-LayouterFactory::LayouterFactory(QObject *parent) :
-    QObject(parent)
+class GridLayouter : public AbstractLayouter
 {
-    m_factorys["Line layout"] = &LineLayouterFactoryFunc;
-    m_factorys["Grid layout"] = &GridLayouterFactoryFunc;
-    m_factorys["Box layout"] = &BoxLayouterFactoryFunc;
-    m_factorys["Box layout (optimized)"] = &BoxLayouterOptimizedFactoryFunc;
-}
+Q_OBJECT
+public:
+    explicit GridLayouter(QObject *parent = 0);
+
+protected:
+    virtual void PlaceImages(const QVector<LayoutChar>& chars) ;
+signals:
+
+public slots:
+
+};
 
 
-QStringList LayouterFactory::names() const {
-    return m_factorys.keys();
-}
-
-AbstractLayouter* LayouterFactory::build(const QString &name,QObject* parent) {
-    if (m_factorys.contains(name)) {
-        return m_factorys[name](parent);
-    }
-    return 0;
-}
+#endif // GRIDLAYOUTER_H

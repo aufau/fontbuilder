@@ -44,6 +44,7 @@ SOURCES += src/main.cpp \
     src/layoutconfig.cpp \
     src/layoutdata.cpp \
     src/layouters/linelayouter.cpp \
+    src/layouters/gridlayouter.cpp \
     src/layouterfactory.cpp \
     src/layouters/boxlayouter.cpp \
     src/layoutconfigframe.cpp \
@@ -85,6 +86,7 @@ HEADERS += src/fontbuilder.h \
     src/layoutconfig.h \
     src/layoutdata.h \
     src/layouters/linelayouter.h \
+    src/layouters/gridlayouter.h \
     src/layouterfactory.h \
     src/layoutchar.h \
     src/layouters/boxlayouter.h \
