@@ -69,11 +69,17 @@
    <item>
     <layout class="QGridLayout" name="gridLayout">
      <item row="1" column="2">
-      <widget class="QSpinBox" name="spinBoxRightOffset">
+       <widget class="QSpinBox" name="spinBoxRightOffset">
+	 <property name="minimum">
+	   <number>-1048576</number>
+	 </property>
       </widget>
      </item>
      <item row="1" column="0">
-      <widget class="QSpinBox" name="spinBoxLeftOffset">
+       <widget class="QSpinBox" name="spinBoxLeftOffset">
+	 <property name="minimum">
+	   <number>-1048576</number>
+	 </property>
       </widget>
      </item>
      <item row="1" column="1">
@@ -87,11 +93,17 @@
       </widget>
      </item>
      <item row="0" column="1">
-      <widget class="QSpinBox" name="spinBoxTopOffset">
+       <widget class="QSpinBox" name="spinBoxTopOffset">
+	 <property name="minimum">
+	   <number>-1048576</number>
+	 </property>
       </widget>
      </item>
      <item row="2" column="1">
       <widget class="QSpinBox" name="spinBoxBottomOffset">
+	 <property name="minimum">
+	   <number>-1048576</number>
+	 </property>
       </widget>
      </item>
     </layout>
