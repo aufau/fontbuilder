@@ -19,6 +19,7 @@ bool JediExporter::Export(QByteArray& out) {
   zglTCharDesc CharDesc;
 
   int i = 0;
+  sortSymbols();
 
   foreach ( const Symbol& c, symbols() )
   {

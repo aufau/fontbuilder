@@ -45,8 +45,8 @@ void GridLayouter::PlaceImages(const QVector<LayoutChar>& chars) {
 
     int min_y = chars.front().y;
     int min_x = chars.front().x;
-    int max_y = chars.front().y;
-    int max_x = chars.front().x;
+    int max_y = chars.front().y + chars.front().h;
+    int max_x = chars.front().x + chars.front().w;
     int max_w, max_h;
 
     foreach (const LayoutChar& c, chars) {

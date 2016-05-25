@@ -83,6 +83,9 @@ protected:
         int offsetY;
         int advance;
         QMap<uint,int> kerning;
+        bool operator<(const Symbol &other) const {
+            return (id < other.id);
+        }
     };
 
     const FontConfig* fontConfig() const { return m_font_config;}
@@ -98,6 +101,7 @@ protected:
     virtual bool Export(QByteArray& out) = 0;
     FT_Face face() const {return m_face;}
     float scale() const { return m_scale; }
+    void sortSymbols() { qSort(m_symbols); }
 private:
      QVector<Symbol> m_symbols;
 };
