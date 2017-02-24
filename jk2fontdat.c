@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <getopt.h>
 #include <ctype.h>
 
@@ -42,6 +43,7 @@ typedef struct dfontdat_s
 
 dfontdat_t jk2font;
 const char *progName;
+FILE       *fd;
 
 // Procedures
 
@@ -49,21 +51,22 @@ void PrintHelpExit()
 {
 	printf("  Usage: %s [-u] FILE\n", progName);
 	printf("Options:\n"
-	       "  -u replace lowercase glyph data with uppercase\n");
+	       "  -u replace lowercase glyph data with uppercase\n"
+	       "  -z zero all fields in empty glyphs\n"
+		);
 	exit(EXIT_SUCCESS);
 }
 
 void LoadFontData(const char *file)
 {
-	FILE *fd;
-	int size;
+	size_t size;
 
 	if (file[0] == '\0') {
 		PrintHelpExit();
 	} else if (file[0] == '-' && file[1] == '\0') {
 		fd = stdin;
 	} else {
-		fd = fopen(file, "rb");
+		fd = fopen(file, "r+b");
 		check_failure(fd, NULL, "Error opening file: ");
 		printf("File: %s\n\n", file);
 	}
@@ -80,18 +83,54 @@ void LoadFontData(const char *file)
 	}
 }
 
+void SaveFontData()
+{
+	size_t size;
+
+	if (fd == stdin)
+		fd = stdout;
+	else
+		rewind(fd);
+
+	size = fwrite(&jk2font, 1, sizeof(jk2font), fd);
+
+	if (size < sizeof(jk2font)) {
+		printf("Short write.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
 void ConvertToUppercase()
 {
 	printf("Replacing lowercase glyphs...\n");
 
+	/*
 	for (int i = 'a'; i <= 'z'; i++) {
 		jk2font.mGlyphs[i] = jk2font.mGlyphs[i - 'a' + 'A'];
 	}
-	for (int i = 0xe0; i < 0xf6; i++) {
+	*/
+	for (int i = 0xe0; i <= 0xf6; i++) {
 		jk2font.mGlyphs[i] = jk2font.mGlyphs[i - 0xe0 + 0xc0];
 	}
-	for (int i = 0xf8; i < 0xfe; i++) {
+	for (int i = 0xf8; i <= 0xfe; i++) {
 		jk2font.mGlyphs[i] = jk2font.mGlyphs[i - 0xf8 + 0xd8];
+	}
+
+	printf("Done\n");
+}
+
+void ZeroEmptyGlyphs()
+{
+	glyphInfojk2_t *glyph;
+
+	printf("Zeroing all fields in empty glyphs...\n");
+
+	for (int i = 0; i <= 0xff; i++) {
+		glyph = &jk2font.mGlyphs[i];
+
+		if (glyph->width == 0 && glyph->height == 0 && glyph->horizAdvance == 0) {
+			memset(glyph, 0, sizeof(*glyph));
+		}
 	}
 
 	printf("Done\n");
@@ -131,6 +170,7 @@ void PrintFontData()
 }
 
 #define FLAG_UPPERCASE 0x01
+#define FLAG_ZERO      0x02
 
 int main (int argc, char *argv[])
 {
@@ -140,10 +180,13 @@ int main (int argc, char *argv[])
 
 	progName = argv[0];
 
-	while ((opt = getopt(argc, argv, "u")) != -1) {
+	while ((opt = getopt(argc, argv, "uz")) != -1) {
 		switch (opt) {
 		case 'u':
 			flags |= FLAG_UPPERCASE;
+			break;
+		case 'z':
+			flags |= FLAG_ZERO;
 			break;
 		case '?':
 			PrintHelpExit();
@@ -157,8 +200,15 @@ int main (int argc, char *argv[])
 	file = argv[optind];
 	LoadFontData(file);
 
-	if (flags & FLAG_UPPERCASE) {
-		ConvertToUppercase();
+	if (flags) {
+		if (flags & FLAG_UPPERCASE) {
+			ConvertToUppercase();
+		}
+		if (flags & FLAG_ZERO) {
+			ZeroEmptyGlyphs();
+		}
+
+		SaveFontData();
 	} else {
 		PrintFontData();
 	}
