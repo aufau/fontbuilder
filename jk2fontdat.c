@@ -136,6 +136,44 @@ void ZeroEmptyGlyphs()
 	printf("Done\n");
 }
 
+void AdjustErgoeC()
+{
+	glyphInfojk2_t *glyph;
+
+	printf("Adjusting spacing in Ergoe Condensed Extra Bold font...\n");
+
+	for (int i = 0; i <= 0xff; i++) {
+	    glyph = &jk2font.mGlyphs[i];
+
+	    if (glyph->horizAdvance - glyph->width >= 2) {
+		// lowercase iso-8859-2 characters
+		if ('a' <= i && i <= 'z')
+		    glyph->horizAdvance--;
+
+		switch (i) {
+		case 177:
+		case 179:
+		case 181:
+		case 182:
+		case 185:
+		case 186:
+		case 187:
+		case 188:
+		case 190:
+		case 191:
+		    glyph->horizAdvance--;
+		}
+
+		if (224 <= i && i <= 246)
+		    glyph->horizAdvance--;
+		if (248 <= i && i <= 254)
+		    glyph->horizAdvance--;
+	    }
+	}
+
+	printf("Done\n");
+}
+
 void PrintFontData()
 {
 	glyphInfojk2_t *glyph;
@@ -171,6 +209,7 @@ void PrintFontData()
 
 #define FLAG_UPPERCASE 0x01
 #define FLAG_ZERO      0x02
+#define FLAG_ERGOEC    0x04
 
 int main (int argc, char *argv[])
 {
@@ -180,13 +219,16 @@ int main (int argc, char *argv[])
 
 	progName = argv[0];
 
-	while ((opt = getopt(argc, argv, "uz")) != -1) {
+	while ((opt = getopt(argc, argv, "uze")) != -1) {
 		switch (opt) {
 		case 'u':
 			flags |= FLAG_UPPERCASE;
 			break;
 		case 'z':
 			flags |= FLAG_ZERO;
+			break;
+		case 'e':
+			flags |= FLAG_ERGOEC;
 			break;
 		case '?':
 			PrintHelpExit();
@@ -206,6 +248,9 @@ int main (int argc, char *argv[])
 		}
 		if (flags & FLAG_ZERO) {
 			ZeroEmptyGlyphs();
+		}
+		if (flags & FLAG_ERGOEC) {
+			AdjustErgoeC();
 		}
 
 		SaveFontData();
