@@ -1,6 +1,7 @@
 #include "jediexporter.h"
 #include "../fontconfig.h"
 #include "../layoutdata.h"
+#include <iostream>
 
 JediExporter::JediExporter(QObject *parent) :
     AbstractExporter(parent)
@@ -18,21 +19,19 @@ bool JediExporter::Export(QByteArray& out) {
   unsigned char Padding[4] = { 0, 0, 0, 0 };
   zglTCharDesc CharDesc;
 
-  int i = 0;
+  uint i = 0;
   sortSymbols();
 
   foreach ( const Symbol& c, symbols() )
   {
-    int id = c.id;
-
-    if ( i < id ) {
-      for ( int j = 0; j < (id - i) * 28; j++ ) {
-        out.append( "\0", 1 );
-        //out.append( "\0", (id - i) * 28 );
-      }
-      i = id;
+    if ( c.id >= 0x100 ) {
+      continue;
     }
-    i++;
+
+    while ( i < c.id ) {
+      out.append( QByteArray( 28, '\0' ) );
+      i++;
+    }
 
     if ( c.placeH - c.offsetY > MaxDescender )
       MaxDescender = c.placeH - c.offsetY;
@@ -61,7 +60,15 @@ bool JediExporter::Export(QByteArray& out) {
     out.append( (char*)&CharDesc.t, 4 );
     out.append( (char*)&CharDesc.s2, 4 );
     out.append( (char*)&CharDesc.t2, 4 );
+
+    i++;
   }
+
+  while ( i < 0x100 ) {
+    out.append( QByteArray( 28, '\0' ) );
+    i++;
+  }
+
 
   MaxPointSize = metrics().height;
   MaxHeight = MaxAscender + MaxDescender;
