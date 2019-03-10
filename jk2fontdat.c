@@ -43,33 +43,51 @@ typedef struct dfontdat_s
 
 dfontdat_t jk2font;
 const char *progName;
-FILE       *fd;
 
 // Procedures
 
-void PrintHelpExit()
+void PrintHelpExit(int exitCode)
 {
-	printf("  Usage: %s [-u] FILE\n", progName);
+	printf("  Usage: %s [-uzei] FILE.fontdat\n", progName);
 	printf("Options:\n"
 	       "  -u replace lowercase glyph data with uppercase\n"
 	       "  -z zero all fields in empty glyphs\n"
+	       "  -c adjust spacing in Ergoe Condensed Bold font\n"
+	       "  -e export font to csv\n"
+	       "  -i import font from csv\n"
+	       "  -p print on terminal\n"
 		);
-	exit(EXIT_SUCCESS);
+	exit(exitCode);
+}
+
+FILE *OpenFileLoad(const char *file)
+{
+	if (!strcmp(file, "-")) {
+		return stdin;
+	} else {
+		FILE *fd = fopen(file, "rb");
+		check_failure(fd, NULL, "Error opening file: ");
+		printf("Loading File: %s\n", file);
+		return fd;
+	}
+}
+
+FILE *OpenFileSave(const char *file)
+{
+	if (!strcmp(file, "-")) {
+		return stdout;
+	} else {
+		FILE *fd = fopen(file, "wb");
+		check_failure(fd, NULL, "Error opening file: ");
+		printf("Saving File: %s\n", file);
+		return fd;
+	}
 }
 
 void LoadFontData(const char *file)
 {
 	size_t size;
-
-	if (file[0] == '\0') {
-		PrintHelpExit();
-	} else if (file[0] == '-' && file[1] == '\0') {
-		fd = stdin;
-	} else {
-		fd = fopen(file, "r+b");
-		check_failure(fd, NULL, "Error opening file: ");
-		printf("File: %s\n\n", file);
-	}
+	FILE *fd = OpenFileLoad(file);
 
 	// Little endian only
 	size = fread(&jk2font, 1, sizeof(jk2font), fd);
@@ -81,16 +99,14 @@ void LoadFontData(const char *file)
 		printf("Font data too long.\n");
 		exit(EXIT_FAILURE);
 	}
+
+	fclose(fd);
 }
 
-void SaveFontData()
+void SaveFontData(const char *file)
 {
 	size_t size;
-
-	if (fd == stdin)
-		fd = stdout;
-	else
-		rewind(fd);
+	FILE *fd = OpenFileSave(file);
 
 	size = fwrite(&jk2font, 1, sizeof(jk2font), fd);
 
@@ -98,6 +114,229 @@ void SaveFontData()
 		printf("Short write.\n");
 		exit(EXIT_FAILURE);
 	}
+
+	fclose(fd);
+}
+
+// CSV
+
+#define CSV_DELIMITER_CHAR      '\t'
+#define CSV_DELIMITER_STR       "\t"
+
+static char *csvLoadLine;
+static char *csvLoadPtr;
+
+void CSVParseLine(const char *line)
+{
+	if (csvLoadLine) {
+		free(csvLoadLine);
+	}
+	csvLoadLine = strdup(line);
+	csvLoadPtr = csvLoadLine;
+}
+
+const char *CSVGetString()
+{
+	static char *field = NULL;
+
+	if (field) {
+		free(field);
+	}
+
+	if (csvLoadPtr[0] == '\0') {
+		return NULL;
+	}
+
+	if (csvLoadPtr[0] == '"') {
+		csvLoadPtr++;
+		const char *ptr = strchr(csvLoadPtr, '"');
+		if (ptr == NULL) {
+			printf("Invalid CSV.\n");
+			exit(EXIT_FAILURE);
+		}
+		size_t len = ptr - csvLoadPtr;
+		field = strndup(csvLoadPtr, len);
+		csvLoadPtr += len + 1;
+	} else {
+		const char *ptr = strchr(csvLoadPtr, CSV_DELIMITER_CHAR);
+		if (ptr == NULL) {
+			ptr = strchr(csvLoadPtr, '\0');
+		}
+		size_t len = ptr - csvLoadPtr;
+		field = strndup(csvLoadPtr, len);
+		csvLoadPtr += len;
+	}
+
+	if (csvLoadPtr[0] == CSV_DELIMITER_CHAR) {
+		csvLoadPtr++;
+	}
+
+	return field;
+}
+
+int CSVGetInteger()
+{
+	return atoi(CSVGetString());
+}
+
+float CSVGetFloat()
+{
+	return atof(CSVGetString());
+}
+
+void CSVLoadLine(FILE *fd)
+{
+	char *line = NULL;
+	size_t n = 0;
+	ssize_t nread = getline(&line, &n, fd);
+
+	if (nread <= 0) {
+		printf("Invalid CSV.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	CSVParseLine(line);
+	free(line);
+}
+
+static char *csvSaveLine;
+
+void CSVSaveLine(FILE *fd)
+{
+	if (csvSaveLine) {
+		fputs(csvSaveLine, fd);
+		free(csvSaveLine);
+		csvSaveLine = NULL;
+	}
+	fputc('\n', fd);
+}
+
+void CSVPutString(const char *string)
+{
+	if (csvSaveLine) {
+		size_t len = strlen(csvSaveLine) + 1 + strlen(string);
+		csvSaveLine = realloc(csvSaveLine, len + 1);
+		strcat(csvSaveLine, CSV_DELIMITER_STR);
+		strcat(csvSaveLine, string);
+	} else {
+		csvSaveLine = strdup(string);
+	}
+}
+
+void CSVPutChar(char ch)
+{
+	char buf[2] = {ch, '\0'};
+
+	CSVPutString(buf);
+}
+
+void CSVPutInteger(int i)
+{
+	char buf[16];
+
+	snprintf(buf, sizeof(buf), "%d", i);
+
+	CSVPutString(buf);
+}
+
+void CSVPutFloat(float f)
+{
+	char buf[16];
+
+	snprintf(buf, sizeof(buf), "%.10f", f);
+
+	CSVPutString(buf);
+}
+
+void LoadFontDataCSV(const char *file)
+{
+	FILE *fd = OpenFileLoad(file);
+
+	// font header
+	CSVLoadLine(fd);
+
+	// font properties
+	CSVLoadLine(fd);
+	jk2font.mPointSize = CSVGetInteger();
+	jk2font.mHeight = CSVGetInteger();
+	jk2font.mAscender = CSVGetInteger();
+	jk2font.mDescender = CSVGetInteger();
+	jk2font.mKoreanHack = CSVGetInteger();
+
+	// glyp header
+	CSVLoadLine(fd);
+
+	for (int i = 0; i < GLYPH_COUNT; i++) {
+		glyphInfojk2_t *glyph = &jk2font.mGlyphs[i];
+
+		CSVLoadLine(fd);
+		CSVGetInteger(); // ascii code
+//		CSVGetString();
+		glyph->width = CSVGetInteger();
+		glyph->height = CSVGetInteger();
+		glyph->horizAdvance = CSVGetInteger();
+		glyph->horizOffset = CSVGetInteger();
+		glyph->baseline = CSVGetInteger();
+		glyph->s = CSVGetFloat();
+		glyph->t = CSVGetFloat();
+		glyph->s2 = CSVGetFloat();
+		glyph->t2 = CSVGetFloat();
+	}
+
+	fclose(fd);
+}
+
+void SaveFontDataCSV(const char *file)
+{
+	FILE *fd = OpenFileSave(file);
+
+	// header
+	CSVPutString("Point Size");
+	CSVPutString("Height");
+	CSVPutString("Ascender");
+	CSVPutString("Descender");
+	CSVPutString("Korean Hack");
+	CSVSaveLine(fd);
+
+	CSVPutInteger(jk2font.mPointSize);
+	CSVPutInteger(jk2font.mHeight);
+	CSVPutInteger(jk2font.mAscender);
+	CSVPutInteger(jk2font.mDescender);
+	CSVPutInteger(jk2font.mKoreanHack);
+	CSVSaveLine(fd);
+
+	// glyph header
+	CSVPutString("ASCII");
+//	CSVPutString("Character");
+	CSVPutString("Width");
+	CSVPutString("Height");
+	CSVPutString("Horizontal Advance");
+	CSVPutString("Horizontal Offset");
+	CSVPutString("Baseline");
+	CSVPutString("s");
+	CSVPutString("t");
+	CSVPutString("s2");
+	CSVPutString("t2");
+	CSVSaveLine(fd);
+
+	for (int i = 0; i < GLYPH_COUNT; i++) {
+		glyphInfojk2_t *glyph = &jk2font.mGlyphs[i];
+
+		CSVPutInteger(i);
+//		CSVPutChar((char)i);
+		CSVPutInteger(glyph->width);
+		CSVPutInteger(glyph->height);
+		CSVPutInteger(glyph->horizAdvance);
+		CSVPutInteger(glyph->horizOffset);
+		CSVPutInteger(glyph->baseline);
+		CSVPutFloat(glyph->s);
+		CSVPutFloat(glyph->t);
+		CSVPutFloat(glyph->s2);
+		CSVPutFloat(glyph->t2);
+		CSVSaveLine(fd);
+	}
+
+	fclose(fd);
 }
 
 void ConvertToUppercase()
@@ -210,16 +449,20 @@ void PrintFontData()
 #define FLAG_UPPERCASE 0x01
 #define FLAG_ZERO      0x02
 #define FLAG_ERGOEC    0x04
+#define FLAG_IMPORT    0x08
+#define FLAG_EXPORT    0x10
+#define FLAG_PRINT     0x20
 
 int main (int argc, char *argv[])
 {
 	const char *file;
+	char *filecsv;
 	int opt;
 	int flags = 0;
 
 	progName = argv[0];
 
-	while ((opt = getopt(argc, argv, "uze")) != -1) {
+	while ((opt = getopt(argc, argv, "uzciep")) != -1) {
 		switch (opt) {
 		case 'u':
 			flags |= FLAG_UPPERCASE;
@@ -227,35 +470,61 @@ int main (int argc, char *argv[])
 		case 'z':
 			flags |= FLAG_ZERO;
 			break;
-		case 'e':
+		case 'c':
 			flags |= FLAG_ERGOEC;
 			break;
+		case 'i':
+			flags |= FLAG_IMPORT;
+			break;
+		case 'e':
+			flags |= FLAG_EXPORT;
+			break;
+		case 'p':
+			flags |= FLAG_PRINT;
+			break;
 		case '?':
-			PrintHelpExit();
+			PrintHelpExit(EXIT_SUCCESS);
 		}
 	}
 
 	if (optind >= argc) {
-		PrintHelpExit();
+		PrintHelpExit(EXIT_FAILURE);
 	}
 
 	file = argv[optind];
-	LoadFontData(file);
 
-	if (flags) {
-		if (flags & FLAG_UPPERCASE) {
-			ConvertToUppercase();
-		}
-		if (flags & FLAG_ZERO) {
-			ZeroEmptyGlyphs();
-		}
-		if (flags & FLAG_ERGOEC) {
-			AdjustErgoeC();
-		}
+	if (file[0] == '\0') {
+		PrintHelpExit(EXIT_FAILURE);
+	}
 
-		SaveFontData();
+	filecsv = malloc(strlen(file) + strlen(".csv") + 1);
+	strcpy(filecsv, file);
+	strcat(filecsv, ".csv");
+
+	if (flags & FLAG_IMPORT) {
+		LoadFontDataCSV(filecsv);
 	} else {
+		LoadFontData(file);
+	}
+
+	if (flags & FLAG_UPPERCASE) {
+		ConvertToUppercase();
+	}
+	if (flags & FLAG_ZERO) {
+		ZeroEmptyGlyphs();
+	}
+	if (flags & FLAG_ERGOEC) {
+		AdjustErgoeC();
+	}
+	if (flags & FLAG_PRINT) {
 		PrintFontData();
+		exit(EXIT_SUCCESS);
+	}
+
+	if (flags & FLAG_EXPORT) {
+		SaveFontDataCSV(filecsv);
+	} else {
+		SaveFontData(file);
 	}
 
 	return 0;
