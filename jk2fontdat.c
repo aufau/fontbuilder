@@ -3,6 +3,7 @@
 #include <string.h>
 #include <getopt.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #define GLYPH_COUNT 256
 
@@ -52,10 +53,12 @@ void PrintHelpExit(int exitCode)
 	printf("Options:\n"
 	       "  -u replace lowercase glyph data with uppercase\n"
 	       "  -z zero all fields in empty glyphs\n"
+	       "  -m modify values with formula <property>[+-=]<integer> for all glyphs\n"
 	       "  -c adjust spacing in Ergoe Condensed Bold font\n"
 	       "  -e export font to csv\n"
 	       "  -i import font from csv\n"
 	       "  -p print on terminal\n"
+	       "  -d dry run\n"
 		);
 	exit(exitCode);
 }
@@ -358,6 +361,12 @@ void ConvertToUppercase()
 	printf("Done\n");
 }
 
+bool IsGlyphEmpty(const glyphInfojk2_t *glyph) {
+	return glyph->width == 0 &&
+		glyph->height == 0 &&
+		glyph->horizAdvance == 0;
+}
+
 void ZeroEmptyGlyphs()
 {
 	glyphInfojk2_t *glyph;
@@ -367,9 +376,105 @@ void ZeroEmptyGlyphs()
 	for (int i = 0; i <= 0xff; i++) {
 		glyph = &jk2font.mGlyphs[i];
 
-		if (glyph->width == 0 && glyph->height == 0 && glyph->horizAdvance == 0) {
+		if (IsGlyphEmpty(glyph)) {
 			memset(glyph, 0, sizeof(*glyph));
 		}
+	}
+
+	printf("Done\n");
+}
+
+int ModifyOpInt(char op, int oldValue, int newValue) {
+	switch (op) {
+	case '=':
+		return newValue;
+	case '-':
+		return oldValue - newValue;
+	case '+':
+		return oldValue + newValue;
+	default:
+		perror("ModifyOpInt: Unknown operator");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void ModifyFontData(const char *cmd)
+{
+	printf("Applying modifications to font parameters...\n");
+
+	const char *opStr = strpbrk(cmd, "+-=");
+
+	if (!opStr) {
+		fprintf(stderr, "Error: Modify expression must have - + or = operator");
+		exit(EXIT_FAILURE);
+	}
+
+	char op = opStr[0];
+	char param[128];
+	size_t paramLen = (size_t)(opStr - cmd);
+	memcpy(param, cmd, paramLen);
+	param[paramLen] = '\0';
+
+	if (opStr == cmd) {
+		fprintf(stderr, "Error: Modify expression must start with parameter name");
+		exit(EXIT_FAILURE);
+	}
+
+	if (!isdigit(opStr[1])) {
+		fprintf(stderr, "Error: Modify expression must have integer value");
+		exit(EXIT_FAILURE);
+	}
+
+	int value = atoi(opStr + 1);
+	bool matched = true;
+
+	if (!strcasecmp(param, "mPointSize")) {
+		jk2font.mPointSize = ModifyOpInt(op, jk2font.mPointSize, value);
+	} else if (!strcasecmp(param, "mHeight")) {
+		jk2font.mHeight = ModifyOpInt(op, jk2font.mHeight, value);
+	} else if (!strcasecmp(param, "mAscender")) {
+		jk2font.mAscender = ModifyOpInt(op, jk2font.mAscender, value);
+	} else if (!strcasecmp(param, "mDescender")) {
+		jk2font.mDescender = ModifyOpInt(op, jk2font.mDescender, value);
+	} else if (!strcasecmp(param, "mKoreanHack")) {
+		jk2font.mKoreanHack = ModifyOpInt(op, jk2font.mKoreanHack, value);
+	} else {
+		matched = false;
+	}
+
+	if (matched) {
+		printf("Done\n");
+		return;
+	}
+
+	matched = true;
+	for (int i = 0; i <= 0xff; i++) {
+		glyphInfojk2_t *glyph = &jk2font.mGlyphs[i];
+
+		if (!IsGlyphEmpty(glyph)) {
+			if (!strcasecmp(param, "width")) {
+				glyph->width = ModifyOpInt(op, glyph->width, value);
+			} else if (!strcasecmp(param, "height")) {
+				glyph->height = ModifyOpInt(op, glyph->height, value);
+			} else if (!strcasecmp(param, "advance") || !strcasecmp(param, "horizAdvance")) {
+				glyph->horizAdvance = ModifyOpInt(op, glyph->horizAdvance, value);
+			} else if (!strcasecmp(param, "offset") || !strcasecmp(param, "horizOffset")) {
+				glyph->horizOffset = ModifyOpInt(op, glyph->horizOffset, value);
+			} else if (!strcasecmp(param, "ascent") || !strcasecmp(param, "baseline")) {
+				glyph->baseline = ModifyOpInt(op, glyph->baseline, value);
+			} else if (!strcasecmp(param, "descent")) {
+				int descent = glyph->height - glyph->baseline;
+				descent = ModifyOpInt(op, descent, value);
+				glyph->baseline = glyph->height - descent;
+			} else {
+				matched = false;
+			}
+		}
+	}
+
+	if (!matched) {
+		fprintf(stderr, "Error: Unknown parameter %s\n", param);
+		exit(EXIT_FAILURE);
 	}
 
 	printf("Done\n");
@@ -452,6 +557,8 @@ void PrintFontData()
 #define FLAG_IMPORT    0x08
 #define FLAG_EXPORT    0x10
 #define FLAG_PRINT     0x20
+#define FLAG_DRYRUN    0x40
+#define FLAG_MODIFY    0x80
 
 int main (int argc, char *argv[])
 {
@@ -459,16 +566,21 @@ int main (int argc, char *argv[])
 	char *filecsv;
 	int opt;
 	int flags = 0;
+	char modifyCmd[1024];
 
 	progName = argv[0];
 
-	while ((opt = getopt(argc, argv, "uzciep")) != -1) {
+	while ((opt = getopt(argc, argv, "uzm:ciepd")) != -1) {
 		switch (opt) {
 		case 'u':
 			flags |= FLAG_UPPERCASE;
 			break;
 		case 'z':
 			flags |= FLAG_ZERO;
+			break;
+		case 'm':
+			flags |= FLAG_MODIFY;
+			strcpy(modifyCmd, optarg);
 			break;
 		case 'c':
 			flags |= FLAG_ERGOEC;
@@ -481,6 +593,9 @@ int main (int argc, char *argv[])
 			break;
 		case 'p':
 			flags |= FLAG_PRINT;
+			break;
+		case 'd':
+			flags |= FLAG_DRYRUN;
 			break;
 		case '?':
 			PrintHelpExit(EXIT_SUCCESS);
@@ -507,6 +622,9 @@ int main (int argc, char *argv[])
 		LoadFontData(file);
 	}
 
+	if (flags & FLAG_MODIFY) {
+		ModifyFontData(modifyCmd);
+	}
 	if (flags & FLAG_UPPERCASE) {
 		ConvertToUppercase();
 	}
@@ -518,6 +636,9 @@ int main (int argc, char *argv[])
 	}
 	if (flags & FLAG_PRINT) {
 		PrintFontData();
+		exit(EXIT_SUCCESS);
+	}
+	if (flags & FLAG_DRYRUN) {
 		exit(EXIT_SUCCESS);
 	}
 
