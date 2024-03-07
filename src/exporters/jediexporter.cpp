@@ -1,7 +1,7 @@
 #include "jediexporter.h"
 #include "../fontconfig.h"
 #include "../layoutdata.h"
-#include <iostream>
+#include <QTextCodec>
 
 JediExporter::JediExporter(QObject *parent) :
     AbstractExporter(parent)
@@ -20,9 +20,25 @@ bool JediExporter::Export(QByteArray& out) {
   zglTCharDesc CharDesc;
 
   uint i = 0;
-  sortSymbols();
+
+  QVector<Symbol> syms{};
+  auto codec = QTextCodec::codecForName("cp1250");
 
   foreach ( const Symbol& c, symbols() )
+  {
+    QChar qchar = QChar(c.id);
+    QString qstring = QString(qchar);
+    QByteArray bytes = codec->fromUnicode(qstring);
+    unsigned char byte = bytes.at(0);
+
+    Symbol symb = c;
+    symb.id = byte;
+    syms.push_back(symb);
+  }
+
+  qSort(syms);
+
+  foreach ( const Symbol& c, syms )
   {
     if ( c.id >= 0x100 ) {
       continue;
