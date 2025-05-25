@@ -4,6 +4,7 @@
 #include <getopt.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <math.h>
 
 #define GLYPH_COUNT 256
 
@@ -55,6 +56,7 @@ void PrintHelpExit(int exitCode)
 	       "  -z zero all fields in empty glyphs\n"
 	       "  -m modify values with formula <property>[+-=]<integer> for all glyphs\n"
 	       "  -c adjust spacing in Ergoe Condensed Bold font\n"
+	       "  -r resize to given <point size>\n"
 	       "  -e export font to csv\n"
 	       "  -i import font from csv\n"
 	       "  -p print on terminal\n"
@@ -518,6 +520,92 @@ void AdjustErgoeC()
 	printf("Done\n");
 }
 
+void Resize(int newSize)
+{
+	int oldSize = jk2font.mPointSize;
+
+	if (oldSize <= 2) {
+		printf("Cannot resize glyph data: original mPointSize %d too small\n", oldSize);
+		return;
+	}
+
+	printf("Resizing glyph data from %d to %d...\n", oldSize, newSize);
+
+	int mHeight = 0;
+	int mAscender = -1024;
+	int mDescender = -1024;
+
+	// Scale and round horizAdvance. This is the only glyph
+	// metrics that suffers from deformation due to
+	// rounding. Deformation in all other metrics will be
+	// counteracted by adding extra spacing in s,t parameters
+	// (using extra black space around the glyphs).
+
+	for (int i = 0; i <= 0xff; i++) {
+		glyphInfojk2_t *glyph = &jk2font.mGlyphs[i];
+
+		// Resulting glyph actual width and offset are scaled
+		// by newHorizAdvance / oldHorizAdvance, but small
+		// deformation in glyph width is not very noticeable.
+		if (glyph->horizAdvance > 1 ) {
+			int oldAdvance = glyph->horizAdvance;
+			// this is the only part of the calculations where
+			// glyph metrics is transformed not uniformly -
+			// rounding horizAdvance. How to round it best?
+			int newAdvance = (glyph->horizAdvance * newSize + oldSize / 2 + 1) / oldSize;
+
+			int oldXStarti = glyph->horizOffset;
+			int oldXEndi = glyph->horizOffset + glyph->width;
+			float newXStartf = (float)oldXStarti * newAdvance / oldAdvance;
+			float newXEndf = (float)oldXEndi * newAdvance / oldAdvance;
+			int newXStarti = (int)floorf(newXStartf);
+			int newXEndi = (int)ceilf(newXEndf);
+			float newSPixel = (glyph->s2 - glyph->s) / (newXEndf - newXStartf);
+
+			glyph->horizAdvance = newAdvance;
+			glyph->width = newXEndi - newXStarti;
+			glyph->horizOffset = newXStarti;
+			glyph->s += (newXStarti - newXStartf) * newSPixel;
+			glyph->s2 += (newXEndi - newXEndf) * newSPixel;
+		}
+
+		// height of the actual glyph image will be scaled
+		// precisely by newSize/oldSize. This is under the
+		// assumption that original s,t coordinates match
+		// glyph image size exactly (there are no extra
+		// spaces). Using this algorithm twice on the same
+		// font won't work, because it adds extra spacing to
+		// s,t coordinates!
+
+		if (glyph->height > 1) {
+			int oldYStarti = - glyph->baseline;
+			int oldYEndi = - glyph->baseline + glyph->height;
+			float newYStartf = (float)oldYStarti * ((float)newSize / oldSize);
+			float newYEndf = (float)oldYEndi * ((float)newSize / oldSize);
+			int newYStarti = (int)floorf(newYStartf);
+			float newYEndi = (int)ceilf(newYEndf);
+			float newTPixel = (glyph->t2 - glyph->t) / (newYEndf - newYStartf);
+
+			glyph->height = newYEndi - newYStarti;
+			glyph->baseline = - newYStarti;
+			glyph->t += (newYStarti - newYStartf) * newTPixel;
+			glyph->t2 += (newYEndi - newYEndf) * newTPixel;
+		}
+
+		if (mHeight < glyph->height)
+			mHeight = glyph->height;
+		if (mAscender < glyph->baseline)
+			mAscender = glyph->baseline;
+		if (mDescender < glyph->height - glyph->baseline)
+			mDescender = glyph->height - glyph->baseline;
+	}
+
+	jk2font.mPointSize = newSize;
+	jk2font.mHeight = mHeight;
+	jk2font.mDescender = mDescender;
+	jk2font.mAscender = mAscender;
+}
+
 void PrintFontData()
 {
 	glyphInfojk2_t *glyph;
@@ -559,6 +647,7 @@ void PrintFontData()
 #define FLAG_PRINT     0x20
 #define FLAG_DRYRUN    0x40
 #define FLAG_MODIFY    0x80
+#define FLAG_RESIZE    0x100
 
 int main (int argc, char *argv[])
 {
@@ -567,10 +656,11 @@ int main (int argc, char *argv[])
 	int opt;
 	int flags = 0;
 	char modifyCmd[1024];
+	int pointSize;
 
 	progName = argv[0];
 
-	while ((opt = getopt(argc, argv, "uzm:ciepd")) != -1) {
+	while ((opt = getopt(argc, argv, "uzm:r:ciepd")) != -1) {
 		switch (opt) {
 		case 'u':
 			flags |= FLAG_UPPERCASE;
@@ -596,6 +686,10 @@ int main (int argc, char *argv[])
 			break;
 		case 'd':
 			flags |= FLAG_DRYRUN;
+			break;
+		case 'r':
+			flags |= FLAG_RESIZE;
+			pointSize = atoi(optarg);
 			break;
 		case '?':
 			PrintHelpExit(EXIT_SUCCESS);
@@ -633,6 +727,9 @@ int main (int argc, char *argv[])
 	}
 	if (flags & FLAG_ERGOEC) {
 		AdjustErgoeC();
+	}
+	if (flags & FLAG_RESIZE) {
+		Resize(pointSize);
 	}
 	if (flags & FLAG_PRINT) {
 		PrintFontData();
