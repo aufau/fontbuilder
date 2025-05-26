@@ -63,6 +63,8 @@ private slots:
     void on_plainTextEdit_textChanged();
     void on_pushButtonExport_clicked();
     void on_pushButtonImport_clicked();
+    void on_pushButtonSelectFromCodepage_clicked();
+    void on_lineEditCodepage_editingFinished();
 };
 
 #endif // CHARACTERSFRAME_H

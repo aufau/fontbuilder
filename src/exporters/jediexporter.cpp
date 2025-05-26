@@ -22,7 +22,7 @@ bool JediExporter::Export(QByteArray& out) {
   uint i = 0;
 
   QVector<Symbol> syms{};
-  auto codec = QTextCodec::codecForName("cp1250");
+  auto codec = QTextCodec::codecForName(fontConfig()->charactersCodepage().toUtf8());
 
   foreach ( const Symbol& c, symbols() )
   {

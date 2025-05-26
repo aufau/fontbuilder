@@ -41,6 +41,7 @@ FontConfig::FontConfig(QObject *parent) :
     m_path = defaultFontsPath();
     m_size = 0;
     m_characters = defaultCharacters();
+    m_characters_codepage = defaultCharactersCodepage();
     m_hinting = HintingDefault;
     m_render_missing = false;
     m_antialiased = true;
@@ -58,6 +59,12 @@ const QString& FontConfig::defaultCharacters() const {
     static const QString def = " !\"#$%&'()*+,-./0123456789:;<=>?@"
                                "ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`"
                                "abcdefghijklmnopqrstuvwxyz{|}~";
+    return def;
+}
+
+
+const QString& FontConfig::defaultCharactersCodepage() const {
+    static const QString def = "";
     return def;
 }
 
@@ -111,6 +118,14 @@ void FontConfig::setCharacters(const QString& characters) {
     if (m_characters!=characters) {
         m_characters=characters;
         charactersChanged();
+    }
+}
+
+
+void FontConfig::setCharactersCodepage(const QString& characters_codepage) {
+    if (m_characters_codepage!=characters_codepage) {
+        m_characters_codepage=characters_codepage;
+        renderingOptionsChanged();
     }
 }
 

@@ -34,6 +34,7 @@
 #include <QDebug>
 #include "fontconfig.h"
 #include "charmapdialog.h"
+#include <QTextCodec>
 
 CharactersFrame::CharactersFrame(QWidget *parent) :
     QFrame(parent),
@@ -106,6 +107,7 @@ void CharactersFrame::on_plainTextEdit_textChanged()
 void CharactersFrame::setConfig(FontConfig* config) {
     m_config = config;
     ui->plainTextEdit->setPlainText(config->characters());
+    ui->lineEditCodepage->setText(config->charactersCodepage());
 }
 
 QString CharactersFrame::removeDuplicates(const QString& text) const {
@@ -155,4 +157,32 @@ void CharactersFrame::on_pushButtonRefresh_clicked()
     bool block = ui->plainTextEdit->blockSignals(true);
     ui->plainTextEdit->setPlainText(m_config->characters());
     ui->plainTextEdit->blockSignals(block);
+}
+
+void CharactersFrame::on_lineEditCodepage_editingFinished()
+{
+    if (m_config) {
+        const QString &codepage = ui->lineEditCodepage->text();
+        QTextCodec *codec = QTextCodec::codecForName(codepage.toUtf8());
+
+        if (codec || codepage.isEmpty())
+            m_config->setCharactersCodepage(codepage);
+    }
+}
+
+void CharactersFrame::on_pushButtonSelectFromCodepage_clicked()
+{
+    const QString &codepage = ui->lineEditCodepage->text();
+    QTextCodec *codec = QTextCodec::codecForName(codepage.toUtf8());
+
+    if (codec) {
+        QByteArray characters;
+
+        for (int i = 0; i < 256; i++) {
+            characters.append(i);
+        }
+
+        QString text = codec->toUnicode(characters);
+        ui->plainTextEdit->setPlainText(removeDuplicates(sortChars(text)));
+    }
 }

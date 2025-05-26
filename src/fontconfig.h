@@ -80,6 +80,12 @@ public:
 
     const QString& defaultCharacters() const;
 
+    const QString& charactersCodepage() const { return m_characters_codepage; }
+    void setCharactersCodepage(const QString& characters_codepage);
+    Q_PROPERTY( QString characters_codepage READ charactersCodepage WRITE setCharactersCodepage )
+
+    const QString& defaultCharactersCodepage() const;
+
     int hinting() const { return m_hinting;}
     void setHinting(int b);
     void resetHinting() { m_hinting = HintingDefault;}
@@ -131,6 +137,7 @@ private:
     int m_face_index;
     int m_size;
     QString m_characters;
+    QString m_characters_codepage;
     int    m_hinting;
     bool    m_render_missing;
     bool    m_antialiased;
